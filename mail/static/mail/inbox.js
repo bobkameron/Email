@@ -59,6 +59,21 @@ function compose_email() {
     clear_compose_fields();
 }
 
+function reply_email(email) {
+    let recipient = email.sender;
+    let subject = email.subject;
+    if (subject.length < 4 || !(subject[0] ==='R' && subject[1]==='e' && subject[2]===':'
+    && subject[3] ===' '  )) subject = "Re: " + subject; 
+
+    let body = email.body;
+    body = "On " + email.timestamp + " " + email.sender + " wrote:\n" + body;
+    
+    document.querySelector('#compose-recipients').value = recipient;
+    document.querySelector('#compose-subject').value = subject;
+    document.querySelector('#compose-body').value = body;
+    compose_email_no_clear();
+}
+
 function load_email_body(email,mailbox) {
     document.querySelector('#emails-view').style.display = 'none';
     document.querySelector('#compose-view').style.display = 'none';
@@ -68,10 +83,24 @@ function load_email_body(email,mailbox) {
     body.style.display = 'block';
     if (mailbox !== 'sent') {
         let archive = document.createElement('button');
-        archive.addEventListener('click' , function () {
-            alert("hit button");
-        }  );
-        
+        archive.addEventListener('click', function (event) {
+            console.log(event);
+            
+            fetch(`/emails/${email.id}`, {method: "PUT", body:JSON.stringify({
+                archived: !email.archived
+            })  })
+            .then(result => {
+                if (!result.ok) throw result;
+                load_mailbox('inbox');
+                return result.json();
+            }).then(result => {
+                console.log(result);  
+            }).catch( error => {
+                console.log(error);
+            });
+            
+        });
+    
         archive.innerHTML = email.archived ?'Unarchive this Email' :'Archive this Email'; 
         body.append(archive);
         body.append(document.createElement('hr'));
@@ -94,15 +123,35 @@ function load_email_body(email,mailbox) {
     timeStampNode.innerHTML = "<b> Date/Time Received: </b>" + timeStamp;
     emailBodyNode.innerHTML = emailBody;
 
+    emailBodyNode.style.whiteSpace = 'pre-wrap';
+    console.log(emailBody);
+
     body.append(senderNode);
     body.append(recipientsNode); 
     body.append(subjectNode);
     body.append(timeStampNode);
+
+    let reply = document.createElement('button');
+    reply.innerHTML = "Reply";
+    reply.addEventListener('click', function (event) {
+        event.preventDefault();
+        reply_email(email);
+    });
+
+    body.append(reply);
+    body.append(document.createElement('hr'));
     body.append(emailBodyNode);
 
     fetch(`/emails/${email.id}`, {method: 'PUT', body: JSON.stringify({
         read: true
-    })}); 
+    })}).then(response => {
+        if (!response.ok) throw response;
+        return response.json();
+    }).then(result => {
+        console.log(result);
+    }).catch( error => {
+        console.log(error);
+    })   ; 
 }
 
 function load_email(emailNode,mailbox) {
@@ -188,7 +237,7 @@ function load_mailbox(mailbox) {
   // Show emails from the specific mailbox 
   fetch(`/emails/${mailbox}`).then(response => {
     if (!response.ok) throw response; 
-    return response.json()})
+    return response.json();})
     .then( emails => 
     {
         console.log(emails);
@@ -197,5 +246,5 @@ function load_mailbox(mailbox) {
     ).catch( error => {
         console.log(error);
         alert("Invalid mailbox selected");
-    })
+    });
 }
